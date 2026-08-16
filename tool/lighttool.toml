@@ -1,0 +1,18 @@
+[tool]
+id = "com.gios.brightsudoku"
+label = "Sudoku"
+versionCode = 1
+versionName = "1.0.0"
+orientation = "portrait"
+
+# No permissions at all. Every puzzle is made on the device from a seed, so the
+# tool never touches the network, storage or notifications. Nothing to ask for,
+# nothing for a reviewer to weigh up.
+permissions = []
+
+# Built for the phone. Swap to "com.thelightphone.sdk.emulator" to run against
+# the LightOS emulator instead.
+serverPackage = "com.lightos"
+
+# The release workflow checks versionName against the git tag, and versionCode
+# has to increase every release or Android will refuse to install the update.

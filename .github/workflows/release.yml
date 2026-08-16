@@ -1,0 +1,141 @@
+name: Release APK
+
+# Cut a release by pushing a tag: git tag v1.0.0 && git push origin v1.0.0
+# The tag must match versionName in tool/lighttool.toml, and versionCode must
+# increase on every release or Android will refuse to install the update.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish signed APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+
+      - name: Install Android SDK Platform 36
+        run: sdkmanager "platforms;android-36"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+
+      - name: Check tag against lighttool.toml
+        run: |
+          set -euo pipefail
+          version_name="$(grep -oP '^versionName\s*=\s*"\K[^"]+' tool/lighttool.toml)"
+          version_code="$(grep -oP '^versionCode\s*=\s*\K\d+' tool/lighttool.toml)"
+          if [ "${GITHUB_REF_NAME#v}" != "$version_name" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match versionName ${version_name} in tool/lighttool.toml" >&2
+            exit 1
+          fi
+          echo "VERSION_NAME=$version_name" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$version_code" >> "$GITHUB_ENV"
+
+      - name: Run tests and lint
+        env:
+          GH_PACKAGES_USER: ${{ secrets.GH_PACKAGES_USER }}
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: ./gradlew :tool:testDebugUnitTest :tool:lintDebug --stacktrace
+
+      # The sideload keystore is optional. Without it, tool/build.gradle.kts falls
+      # back to the SDK's committed development key, so a tag still produces an
+      # installable APK. The release notes say which key was used, because a key
+      # change means an existing install has to be removed before updating.
+      - name: Restore signing keystore if one is configured
+        env:
+          BRIGHTSUDOKU_KEYSTORE_BASE64: ${{ secrets.BRIGHTSUDOKU_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BRIGHTSUDOKU_KEYSTORE_BASE64:-}" ]; then
+            echo "::warning::No BRIGHTSUDOKU_KEYSTORE_BASE64 secret. Signing with the SDK development key; see INSTALL.md."
+            echo "SIGNED_WITH=the SDK development key (not a stable sideload key)" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          printf '%s' "$BRIGHTSUDOKU_KEYSTORE_BASE64" | base64 -d > "${RUNNER_TEMP}/brightsudoku-release.jks"
+          echo "BRIGHTSUDOKU_KEYSTORE_FILE=${RUNNER_TEMP}/brightsudoku-release.jks" >> "$GITHUB_ENV"
+          echo "SIGNED_WITH=a personal sideload key" >> "$GITHUB_ENV"
+
+      - name: Assemble signed release APK
+        env:
+          GH_PACKAGES_USER: ${{ secrets.GH_PACKAGES_USER }}
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          BRIGHTSUDOKU_KEYSTORE_PASSWORD: ${{ secrets.BRIGHTSUDOKU_KEYSTORE_PASSWORD }}
+          BRIGHTSUDOKU_KEY_ALIAS: ${{ secrets.BRIGHTSUDOKU_KEY_ALIAS }}
+        run: ./gradlew :tool:assembleRelease --stacktrace
+
+      - name: Generated SDK registry is in the APK
+        run: python3 scripts/check_registry.py tool/build/outputs/apk/release/tool-release.apk
+
+      - name: Name the artifact and record its fingerprint
+        run: |
+          set -euo pipefail
+          src="tool/build/outputs/apk/release/tool-release.apk"
+          out="BrightSudoku-${VERSION_NAME}.apk"
+          cp "$src" "$out"
+          echo "APK_NAME=$out" >> "$GITHUB_ENV"
+          apksigner="$(ls -d "${ANDROID_HOME}"/build-tools/*/apksigner | sort -V | tail -n 1)"
+          "$apksigner" verify --print-certs "$out" | tee signing-certs.txt
+          sha256sum "$out" | tee "${out}.sha256"
+
+      - name: Delete keystore
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/brightsudoku-release.jks" || true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          name: BrightSudoku ${{ env.VERSION_NAME }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            ${{ env.APK_NAME }}
+            ${{ env.APK_NAME }}.sha256
+          body: |
+            Sudoku for the Light Phone III, versionCode ${{ env.VERSION_CODE }}.
+            Every puzzle is made on the phone, proven to have one answer, and
+            proven to need no guessing. No network, no permissions.
+
+            Install with `adb install -r BrightSudoku-${{ env.VERSION_NAME }}.apk`, or track
+            this repository in [Obtainium](https://github.com/ImranR98/Obtainium) with the APK
+            filter `BrightSudoku-.*\.apk` to get updates automatically. See
+            [INSTALL.md](https://github.com/gi-os/BrightSudoku/blob/main/INSTALL.md).
+
+            Signed with ${{ env.SIGNED_WITH }}, not by Light. Android only accepts an update
+            signed by the same key that installed the app, so an APK signed with a different
+            key needs the old one uninstalled first.
+
+      # Tell the index a release exists instead of waiting for its cron. GitHub
+      # schedules are best-effort -- observed 70 minutes apart against a 15
+      # minute schedule -- so without this a new release can sit uncatalogued for
+      # over an hour and simply not appear as an update.
+      - name: Ping the index
+        if: success()
+        continue-on-error: true
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.INDEX_DISPATCH_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/gi-os/brightmarket-index/dispatches \
+            -d "{\"event_type\":\"app-released\"}" \
+          || echo "index ping failed; the hourly cron will pick this up"
