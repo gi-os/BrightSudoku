@@ -59,15 +59,5 @@ enum class Difficulty(
         val default = STEADY
 
         fun byLabel(label: String?): Difficulty? = entries.firstOrNull { it.label == label }
-
-        /**
-         * The grade of a finished logical solve, or null if logic could not
-         * finish it — which, for a puzzle this app deals, should never happen.
-         */
-        fun of(result: LogicResult): Difficulty? {
-            if (!result.solved) return null
-            val hardest = result.hardest ?: return GENTLE
-            return entries.firstOrNull { hardest.rank <= it.ceiling.rank }
-        }
     }
 }
