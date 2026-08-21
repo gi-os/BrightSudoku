@@ -50,16 +50,19 @@ cd BrightSudoku
 Debug builds are signed with the SDK's committed development key, so they install
 fine over each other but not over a release build.
 
-Resolving the SDK's keyboard dependency needs GitHub Packages read access. Add a
-token to `local.properties`:
+Resolving the SDK's keyboard dependency needs GitHub Packages read access —
+the registry will not serve even a public artifact anonymously. Add a token to
+`local.properties`:
 
 ```
 gpr.user=<your github username>
 gpr.key=<a PAT with read:packages>
 ```
 
-CI reads the same values from the `GH_PACKAGES_USER` and `GH_PACKAGES_TOKEN`
-secrets.
+CI needs nothing set up: it falls back to the `GITHUB_TOKEN` every Actions run is
+given, which is enough for a public package. `GH_PACKAGES_USER` and
+`GH_PACKAGES_TOKEN` still take precedence if the repository has them, which is
+the escape hatch if the keyboard ever goes private.
 
 ## Running against the emulator instead
 
@@ -83,7 +86,7 @@ It needs these repository secrets:
 | `BRIGHTSUDOKU_KEYSTORE_BASE64` | `base64 -w0 brightsudoku-release.jks`. Optional — without it releases are signed with the SDK development key. |
 | `BRIGHTSUDOKU_KEYSTORE_PASSWORD` | keystore password |
 | `BRIGHTSUDOKU_KEY_ALIAS` | key alias inside the keystore |
-| `GH_PACKAGES_USER` / `GH_PACKAGES_TOKEN` | GitHub Packages read access |
+| `GH_PACKAGES_USER` / `GH_PACKAGES_TOKEN` | GitHub Packages read access. Optional — without them the run uses its own `GITHUB_TOKEN`. |
 | `INDEX_DISPATCH_TOKEN` | lets a release tell BrightMarket's index about itself instead of waiting for its cron. Optional. |
 
 Generate a keystore once and keep it somewhere safe — losing it means nobody can

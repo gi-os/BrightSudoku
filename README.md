@@ -225,7 +225,9 @@ cd BrightSudoku
 ```
 
 This repo vendors the SDK, so the build resolves nothing from GitHub Packages
-except the SDK's keyboard dependency — see [INSTALL.md](INSTALL.md) for the token.
+except the SDK's keyboard dependency, and that registry will not serve even a
+public artifact anonymously — see [INSTALL.md](INSTALL.md) for the token. CI needs
+no token of its own: it falls back to the `GITHUB_TOKEN` the run already has.
 
 To run against the LightOS emulator, set
 `serverPackage = "com.thelightphone.sdk.emulator"` in `tool/lighttool.toml`. Set it

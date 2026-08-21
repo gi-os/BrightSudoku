@@ -10,6 +10,9 @@ on:
 
 permissions:
   contents: read
+  # The SDK's keyboard comes from GitHub Packages, which will not serve even a
+  # public artifact anonymously. This is what makes GITHUB_TOKEN enough for it.
+  packages: read
 
 concurrency:
   group: build-${{ github.ref }}
@@ -41,38 +44,18 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
 
-      # The SDK's keyboard is the one dependency this repo does not vendor, and it
-      # lives in GitHub Packages behind auth. Without credentials Gradle fails two
-      # hundred lines into a stack trace whose last word is "401", which says
-      # nothing about which secret is missing or where to put it. An unset secret
-      # in Actions is an empty string rather than an error, so nothing else
-      # catches this. Lengths are printed, never values: that distinguishes a
-      # missing secret from a wrong one without putting either in the log.
-      - name: GitHub Packages credentials are present
+      - name: GitHub Packages is reachable
         env:
           GH_PACKAGES_USER: ${{ secrets.GH_PACKAGES_USER }}
           GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
-        run: |
-          set -uo pipefail
-          missing=0
-          if [ -z "${GH_PACKAGES_USER:-}" ]; then
-            echo "::error::GH_PACKAGES_USER is not set on this repository."
-            missing=1
-          fi
-          if [ -z "${GH_PACKAGES_TOKEN:-}" ]; then
-            echo "::error::GH_PACKAGES_TOKEN is not set on this repository."
-            missing=1
-          fi
-          if [ "$missing" = 1 ]; then
-            echo "::error::Add both under Settings > Secrets and variables > Actions. The token needs read:packages. Note that gi-os is a personal account, not an organisation, so Actions secrets are per-repository and a new repo inherits nothing from its siblings."
-            exit 1
-          fi
-          echo "ok: user ${#GH_PACKAGES_USER} chars, token ${#GH_PACKAGES_TOKEN} chars"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/check_packages_access.sh
 
       - name: Run app checks
         env:
           GH_PACKAGES_USER: ${{ secrets.GH_PACKAGES_USER }}
           GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./gradlew :tool:testDebugUnitTest :tool:lintDebug :tool:assembleDebug --stacktrace
 
       # BrightNonogram v0.1.2 crashed at launch on a Regex the JVM accepted and
