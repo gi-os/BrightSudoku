@@ -3,7 +3,6 @@ package com.gios.brightsudoku
 import android.view.KeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -353,7 +352,7 @@ private fun Play(board: Board, state: ToolState, vm: SudokuViewModel) {
             version = version,
             showWrong = state.checkAsYouGo,
             hint = hint,
-            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 2.dp),
             onSelect = { vm.select(it) },
         )
 
@@ -371,8 +370,6 @@ private fun Play(board: Board, state: ToolState, vm: SudokuViewModel) {
             lighten = !solved,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp).height(22.dp),
         )
-
-        Spacer(Modifier.weight(1f))
 
         if (solved) {
             Row(
