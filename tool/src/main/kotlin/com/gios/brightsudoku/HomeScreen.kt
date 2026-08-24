@@ -343,34 +343,16 @@ private fun Play(board: Board, state: ToolState, vm: SudokuViewModel) {
     val showing = hint
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxSize().padding(top = 0.dp, bottom = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            LightText(
-                text = "‹ Home",
-                variant = LightTextVariant.Detail,
-                modifier = Modifier.lightClickable { vm.leaveBoard() }.padding(vertical = 4.dp),
-            )
-            LightText(
-                text = if (solved) "Solved" else board.puzzle.difficulty.label,
-                variant = LightTextVariant.Detail,
-                lighten = !solved,
-            )
-            LightText(text = "#${board.puzzle.seed}", variant = LightTextVariant.Detail, lighten = true)
-        }
-
         SudokuGrid(
             board = board,
             selected = selected,
             version = version,
             showWrong = state.checkAsYouGo,
             hint = hint,
-            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 6.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 1.dp),
             onSelect = { vm.select(it) },
         )
 
@@ -379,14 +361,14 @@ private fun Play(board: Board, state: ToolState, vm: SudokuViewModel) {
         // square.
         LightText(
             text = when {
-                solved -> "Finished in ${vm.moveCount} moves"
+                solved -> "Solved · ${vm.moveCount} moves"
                 showing != null -> showing.explain()
                 else -> " "
             },
             variant = LightTextVariant.Superfine,
             align = TextAlign.Center,
             lighten = !solved,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp).height(30.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp).height(22.dp),
         )
 
         if (solved) {
@@ -411,10 +393,15 @@ private fun Play(board: Board, state: ToolState, vm: SudokuViewModel) {
         DigitPad(board, pencilMode, onDigit = { vm.enter(it) })
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            LightText(
+                text = "Home",
+                variant = LightTextVariant.Detail,
+                modifier = Modifier.lightClickable { vm.leaveBoard() },
+            )
             // The label names the mode a tap will *use*, not the one it switches
             // to, so there is never a question what pressing a digit does next.
             LightText(
@@ -426,11 +413,6 @@ private fun Play(board: Board, state: ToolState, vm: SudokuViewModel) {
                 text = "Erase",
                 variant = LightTextVariant.Detail,
                 modifier = Modifier.lightClickable { vm.eraseSelected() },
-            )
-            LightText(
-                text = "Fill marks",
-                variant = LightTextVariant.Detail,
-                modifier = Modifier.lightClickable { vm.fillMarks() },
             )
             LightText(
                 text = "Undo",
@@ -464,9 +446,9 @@ private fun DigitPad(board: Board, pencilMode: Boolean, onDigit: (Int) -> Unit) 
         for (d in 1..Sudoku.N) {
             LightText(
                 text = d.toString(),
-                variant = if (pencilMode) LightTextVariant.Copy else LightTextVariant.Subheading,
+                variant = if (pencilMode) LightTextVariant.Subheading else LightTextVariant.Heading,
                 lighten = counts[d] >= Sudoku.N,
-                modifier = Modifier.lightClickable { onDigit(d) }.padding(horizontal = 6.dp, vertical = 8.dp),
+                modifier = Modifier.lightClickable { onDigit(d) }.padding(horizontal = 5.dp, vertical = 4.dp),
             )
         }
     }
@@ -645,10 +627,6 @@ class SudokuViewModel(
         if (b.erase(cell)) afterMove(b)
     }
 
-    fun fillMarks() {
-        val b = board ?: return
-        if (b.fillPencilMarks()) afterMove(b)
-    }
 
     fun undo() {
         val b = board ?: return
