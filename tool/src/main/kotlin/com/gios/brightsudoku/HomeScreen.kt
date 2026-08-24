@@ -393,7 +393,7 @@ private fun Play(board: Board, state: ToolState, vm: SudokuViewModel) {
         DigitPad(board, pencilMode, onDigit = { vm.enter(it) })
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, top = 2.dp, bottom = 2.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
