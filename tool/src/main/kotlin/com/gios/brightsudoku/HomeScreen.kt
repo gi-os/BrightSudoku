@@ -3,6 +3,7 @@ package com.gios.brightsudoku
 import android.view.KeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -343,7 +344,7 @@ private fun Play(board: Board, state: ToolState, vm: SudokuViewModel) {
     val showing = hint
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(top = 0.dp, bottom = 2.dp),
+        modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         SudokuGrid(
@@ -352,7 +353,7 @@ private fun Play(board: Board, state: ToolState, vm: SudokuViewModel) {
             version = version,
             showWrong = state.checkAsYouGo,
             hint = hint,
-            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 1.dp),
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
             onSelect = { vm.select(it) },
         )
 
@@ -370,6 +371,8 @@ private fun Play(board: Board, state: ToolState, vm: SudokuViewModel) {
             lighten = !solved,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp).height(22.dp),
         )
+
+        Spacer(Modifier.weight(1f))
 
         if (solved) {
             Row(
@@ -393,7 +396,7 @@ private fun Play(board: Board, state: ToolState, vm: SudokuViewModel) {
         DigitPad(board, pencilMode, onDigit = { vm.enter(it) })
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 6.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
