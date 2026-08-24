@@ -135,7 +135,7 @@ The whole thing follows the LightOS theme and flips with light and dark mode.
 | Tap a digit | Write it into the selected square. Tap the same digit again to rub it out. |
 | Digits / Marks | One toggle. The label names the mode a tap will *use*, not the one it switches to. |
 | Erase | Empty the selected square, marks and all |
-| Fill marks | Write every square's real candidates in at once |
+| Home | Leave the puzzle. The board is already saved. |
 | Undo | Remembers 120 moves |
 | Hint | First press shows it. Second press carries it out. |
 
