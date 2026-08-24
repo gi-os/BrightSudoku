@@ -1,8 +1,8 @@
 [tool]
 id = "com.gios.brightsudoku"
 label = "Sudoku"
-versionCode = 3
-versionName = "1.2.0"
+versionCode = 4
+versionName = "1.2.1"
 orientation = "portrait"
 
 # No permissions at all. Every puzzle is made on the device from a seed, so the
