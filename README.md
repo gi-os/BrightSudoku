@@ -21,7 +21,7 @@ every Bright app, at
 [Download the latest APK](https://github.com/gi-os/BrightSudoku/releases/latest). See
 [INSTALL.md](INSTALL.md).
 
-Part of the [gi-os Light App collection](#the-gi-os-light-app-collection).
+Part of the [Bright* collection](https://brightmarket.gzl.dev).
 
 ## Two promises
 
