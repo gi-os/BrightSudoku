@@ -1,169 +1,177 @@
 #!/usr/bin/env python3
-"""Build BrightSudoku's mark.
+"""Build BrightSudoku's launcher mark.
 
-Writes two files from one description of the geometry:
+Part of the unified Bright* icon set. Every mark in the collection is drawn on
+the same 108x108 adaptive-icon canvas, inside the same 18..90 safe zone, at the
+same two stroke weights, in white on black and nothing else. The Light Phone
+III panel is black and white; a mark with a mid-tone in it dithers.
 
-  tool/src/main/res/drawable/loading_text_icon.xml   the splash mark
-  assets/icon.png                                    the same mark, for the README
-
-The rest of the gi-os Light collection draws the first letter of the tool's name.
-Sudoku cannot: BrightSolitaire already has the S, and two tools in the same
-toolbox showing the same letter is worse than no letter. So this one draws what
-the tool actually is — a three by three grid with one square filled — which needs
-no font, which is why this script has no dependencies at all. It is stdlib only,
-so it runs anywhere Python does.
+Edit MARK below and re-run. The vector outputs need nothing but the standard
+library. The raster outputs need Pillow and cairosvg, and are skipped with a
+message if those are missing, because the vectors are what actually ship on
+API 26 and up.
 
     python3 tools/generate_icon.py
 """
 
 import os
-import struct
-import sys
-import zlib
+import re
 
-# ---- geometry, in the drawable's 240x240 viewport --------------------------
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-VIEWPORT = 240
-MARGIN = 44
-SIDE = VIEWPORT - 2 * MARGIN          # 152
-CELL = SIDE / 3.0
-OUTER = 9.0                            # border thickness
-INNER = 6.0                            # thickness of the two lines each way
+# ---- the mark ---------------------------------------------------------------
+# Each entry is (path data, stroke width, even-odd fill). A stroke width of 0
+# means the path is filled instead of stroked.
 
+MARK = [
+    ('M24.00,24.00 H84.00 V84.00 H24.00 Z', 5, False),
+    ('M44,24 V84', 4, False),
+    ('M64,24 V84', 4, False),
+    ('M24,44 H84', 4, False),
+    ('M24,64 H84', 4, False),
+    ('M48.00,48.00 H60.00 V60.00 H48.00 Z', 0, False),
+]
 
-def rectangles():
-    """The mark as a list of (x, y, w, h), all axis-aligned.
+# Where the mark is written, and at what viewport. 108 is the adaptive-icon
+# canvas; 240 is the LightOS splash mark, which is the only place a LightOS
+# tool can show a mark of its own.
+TARGETS = [
+    ('tool/src/main/res/drawable/loading_text_icon.xml', 240),
+]
 
-    Everything is a filled rectangle rather than a stroked path. A stroke is
-    centred on its line, so half of an outer stroke would sit outside the
-    viewport and be clipped by an adaptive-icon mask at a different radius on
-    every launcher. Rectangles put every edge exactly where it is asked for.
-    """
-    lo, hi = MARGIN, MARGIN + SIDE
-    out = []
+# Legacy rasters: (path, pixels, circular mask, inset, transparent plate).
+# Inset shrinks the mark inside the plate - a legacy square icon gets no
+# launcher mask, so it needs the margin the mask would otherwise have given it.
+# A transparent plate is for an adaptive foreground layer, which is composited
+# over the plate rather than carrying one of its own.
+RASTERS = [
+    ('assets/icon.png', 240, False, 1.0, False),
+]
 
-    # Border, as four bars rather than a stroked box.
-    out.append((lo, lo, SIDE, OUTER))                       # top
-    out.append((lo, hi - OUTER, SIDE, OUTER))               # bottom
-    out.append((lo, lo, OUTER, SIDE))                       # left
-    out.append((hi - OUTER, lo, OUTER, SIDE))               # right
+# Files that are the same in every app: the black plate, and the adaptive-icon
+# wrapper that points the launcher at the plate and the mark.
+STATIC = [
 
-    # The two lines each way that make it a sudoku grid rather than a box.
-    for i in (1, 2):
-        at = lo + CELL * i - INNER / 2
-        out.append((at, lo, INNER, SIDE))                   # vertical
-        out.append((lo, at, SIDE, INNER))                   # horizontal
+]
 
-    # One square filled, in the middle. Inset so it reads as a square inside a
-    # cell rather than as a blob touching the rules around it.
-    inset = 7.0
-    cx = lo + CELL + INNER / 2 + inset
-    cy = lo + CELL + INNER / 2 + inset
-    size = CELL - INNER - 2 * inset
-    out.append((cx, cy, size, size))
+STROKE = ('        android:fillColor="#00000000"\n'
+          '        android:strokeColor="#FFFFFF"\n'
+          '        android:strokeWidth="%g"\n'
+          '        android:strokeLineCap="round"\n'
+          '        android:strokeLineJoin="round" />')
 
-    return out
-
-
-def path_data():
-    """The rectangles as one SVG/vector path, each closed with Z."""
-    parts = []
-    for x, y, w, h in rectangles():
-        parts.append(
-            "M%.2f %.2fH%.2fV%.2fH%.2fZ" % (x, y, x + w, y + h, x)
-        )
-    return "".join(parts)
-
-
-# ---- outputs ---------------------------------------------------------------
-
-VECTOR = """<?xml version="1.0" encoding="utf-8"?>
+HEADER = '''<?xml version="1.0" encoding="utf-8"?>
 <!--
-    Overrides the drawable of the same name in sdk:client, which is the SDK's
-    "loading..." splash mark. Resources in the application module take
-    precedence over resources from a library module, so this needs no manifest
-    change: LightOS tools have no launcher icon, and the splash is the one place
-    a tool can show a mark of its own.
+  BrightSudoku launcher mark. One of the unified Bright* set: 108 canvas, 18..90
+  safe zone, white on black, no greys and no colour anywhere.
 
-    Generated by tools/generate_icon.py. Do not edit by hand.
+  Generated by tools/generate_icon.py - edit the geometry there, not here.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="240dp"
-    android:height="240dp"
-    android:viewportWidth="240"
-    android:viewportHeight="240">
-  <path
-      android:pathData="%s"
-      android:fillColor="#fff"
-      android:fillType="nonZero"/>
+    android:width="%(vp)sdp"
+    android:height="%(vp)sdp"
+    android:viewportWidth="%(vp)s"
+    android:viewportHeight="%(vp)s">
+%(paths)s
 </vector>
-"""
+'''
 
 
-def write_png(path, size=240):
-    """The mark as a PNG: white on a solid black tile.
+def scale_path(d, k):
+    """Multiply every number in a path by k.
 
-    The drawable above is white on nothing, which is right for the splash — it is
-    drawn on the SDK's black loading screen. This one is for the README, where
-    the page behind it is white in one theme and black in the other, and a mark
-    with no ground of its own would vanish into one of them. So it carries the
-    ground with it.
+    Safe on this data because every path is absolute and uniformly scaled, so
+    arc rx/ry scale with everything else. The large-arc and sweep flags are 0
+    or 1 and a naive pass would scale them into nonsense, so each arc command
+    is matched whole and its three flag fields copied through untouched."""
+    if k == 1.0:
+        return d
+    num = re.compile(r'-?\d*\.?\d+')
+    arc = re.compile(r'A\s*(-?[\d.]+)\s*,?\s*(-?[\d.]+)\s+(-?[\d.]+)\s+([01])\s*,?\s*([01])\s+')
 
-    Written by hand because the mark is rectangles on a grid: an image library
-    would be a dependency bought for nothing, and this script staying stdlib-only
-    is what lets anyone regenerate the icon without setting anything up.
-    """
-    scale = size / float(VIEWPORT)
-    rects = [(x * scale, y * scale, w * scale, h * scale) for x, y, w, h in rectangles()]
+    def one(s):
+        return ('%.3f' % (float(s) * k)).rstrip('0').rstrip('.')
 
-    rows = []
-    for y in range(size):
-        row = bytearray(b"\x00")          # PNG filter byte: none
-        for x in range(size):
-            inside = any(
-                rx <= x + 0.5 < rx + rw and ry <= y + 0.5 < ry + rh
-                for rx, ry, rw, rh in rects
-            )
-            row += b"\xff\xff\xff\xff" if inside else b"\x00\x00\x00\xff"
-        rows.append(bytes(row))
+    def plain(s):
+        return num.sub(lambda m: one(m.group(0)), s)
 
-    raw = zlib.compress(b"".join(rows), 9)
-
-    def chunk(tag, data):
-        return (
-            struct.pack(">I", len(data))
-            + tag
-            + data
-            + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-        )
-
-    png = b"\x89PNG\r\n\x1a\n"
-    png += chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0))
-    png += chunk(b"IDAT", raw)
-    png += chunk(b"IEND", b"")
-
-    with open(path, "wb") as f:
-        f.write(png)
+    out, i = [], 0
+    for m in arc.finditer(d):
+        out.append(plain(d[i:m.start()]))
+        out.append('A%s,%s %s %s %s ' % (one(m.group(1)), one(m.group(2)),
+                                         m.group(3), m.group(4), m.group(5)))
+        i = m.end()
+    out.append(plain(d[i:]))
+    return ''.join(out)
 
 
-def main():
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    drawable = os.path.join(
-        root, "tool", "src", "main", "res", "drawable", "loading_text_icon.xml"
-    )
-    icon = os.path.join(root, "assets", "icon.png")
-
-    os.makedirs(os.path.dirname(drawable), exist_ok=True)
-    os.makedirs(os.path.dirname(icon), exist_ok=True)
-
-    with open(drawable, "w") as f:
-        f.write(VECTOR % path_data())
-    write_png(icon)
-
-    print("wrote %s" % os.path.relpath(drawable, root))
-    print("wrote %s" % os.path.relpath(icon, root))
-    return 0
+def render(vp):
+    k = vp / 108.0
+    body = []
+    for d, w, even in MARK:
+        pd = scale_path(d, k)
+        if w == 0:
+            ft = '\n        android:fillType="evenOdd"' if even else ''
+            body.append('    <path\n        android:pathData="%s"\n'
+                        '        android:fillColor="#FFFFFF"%s />' % (pd, ft))
+        else:
+            body.append('    <path\n        android:pathData="%s"\n%s'
+                        % (pd, STROKE % (w * k)))
+    return HEADER % {'vp': vp, 'paths': '\n'.join(body)}
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+def svg(inset=1.0, transparent=False):
+    m = (1 - inset) * 54
+    s = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">']
+    if not transparent:
+        s.append('<rect width="108" height="108" fill="#000000"/>')
+    s += [
+         '<g transform="translate(%.3f,%.3f) scale(%s)">' % (m, m, inset)]
+    for d, w, even in MARK:
+        if w == 0:
+            fr = ' fill-rule="evenodd"' if even else ''
+            s.append('<path d="%s" fill="#FFFFFF"%s/>' % (d, fr))
+        else:
+            s.append('<path d="%s" fill="none" stroke="#FFFFFF" stroke-width="%s" '
+                     'stroke-linecap="round" stroke-linejoin="round"/>' % (d, w))
+    s.append('</g></svg>')
+    return ''.join(s)
+
+
+def write(rel, text):
+    p = os.path.join(ROOT, rel)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    open(p, 'w').write(text)
+    print('wrote', rel)
+
+
+def rasters():
+    try:
+        import io
+        import cairosvg
+        from PIL import Image, ImageDraw
+    except ImportError:
+        print('Pillow/cairosvg not installed - skipped the rasters. The adaptive '
+              'icon is what ships on API 26 and up.')
+        return
+    for rel, px, round_, inset, transparent in RASTERS:
+        raw = cairosvg.svg2png(bytestring=svg(inset, transparent).encode(),
+                               output_width=px * 4, output_height=px * 4)
+        im = Image.open(io.BytesIO(raw)).convert('RGBA')
+        if round_:
+            mask = Image.new('L', im.size, 0)
+            ImageDraw.Draw(mask).ellipse([0, 0, im.size[0] - 1, im.size[1] - 1], fill=255)
+            im.putalpha(mask)
+        im = im.resize((px, px), Image.LANCZOS)
+        p = os.path.join(ROOT, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        im.save(p, 'WEBP' if rel.endswith('.webp') else 'PNG')
+        print('wrote', rel)
+
+
+if __name__ == '__main__':
+    for rel, vp in TARGETS:
+        write(rel, render(vp))
+    for rel, text in STATIC:
+        write(rel, text)
+    rasters()
