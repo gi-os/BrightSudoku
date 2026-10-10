@@ -13,7 +13,6 @@ import com.thelightphone.sdk.shared.LightServiceMethod
 import com.thelightphone.sdk.shared.error
 import com.thelightphone.sdk.shared.getOrNull
 import com.thelightphone.sdk.ui.defaultKeyboardOptions
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,7 +49,10 @@ private var cachedOptions = defaultKeyboardOptions()
 
 @Composable
 fun rememberKeyboardOptions(
-    initialOptions: KeyboardOptions = cachedOptions
+    initialOptions: KeyboardOptions = cachedOptions,
+    // temporarily force opt-in for dictation key.
+    // We don't support it in LP3 keyboard as of 0.0.19
+    allowDictationKey: Boolean = false
 ): StateFlow<KeyboardOptions> {
     val flow = remember { MutableStateFlow(initialOptions) }
     val scope = rememberCoroutineScope()
@@ -59,20 +61,12 @@ fun rememberKeyboardOptions(
     SideEffect {
         refreshJob.value?.cancel()
         refreshJob.value = scope.launch {
-            // The keyboard is a detail of a screen, never the reason for it. If the options
-            // cannot be fetched or read, the screen keeps the defaults and stays up.
-            val refreshed = try {
-                refreshKeyboardOptions()
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (error: Throwable) {
-                Log.e(TAG, "Could not refresh keyboard options", error)
-                null
-            }
-            refreshed?.let {
-                cachedOptions = it
-                flow.value = it
-            }
+            refreshKeyboardOptions()
+                ?.let { it.copy(displayVoice = it.displayVoice && allowDictationKey) }
+                ?.let {
+                    cachedOptions = it
+                    flow.value = it
+                }
         }
     }
     return flow
