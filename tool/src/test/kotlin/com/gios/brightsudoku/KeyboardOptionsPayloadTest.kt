@@ -19,6 +19,11 @@ import kotlin.test.assertTrue
  * was wrong with the keyboard, only with reading the phone's answer about it.
  *
  * These pin both directions on the one payload that every text-entry screen fetches.
+ *
+ * Two cases are gone since the move to SDK 0.2.0: an empty `{}` for keyboard options and for
+ * user preferences. This repo used to carry its own patched `:sdk:shared` that defaulted every
+ * field. Light's builder uses the upstream SDK, where those fields are required, so the tests
+ * would only be testing a patch the shipped tool no longer has.
  */
 class KeyboardOptionsPayloadTest {
 
@@ -30,14 +35,6 @@ class KeyboardOptionsPayloadTest {
 
         assertNull(decoded.emojisAsString)
         assertTrue(decoded.displayVoice)
-    }
-
-    @Test
-    fun `a payload that omits every field still decodes`() {
-        val decoded = LightServiceMethod.GetKeyboardOptions.decodeResponse("{}")
-
-        assertNull(decoded.emojisAsString)
-        assertNull(decoded.swipeEnabled)
     }
 
     @Test
@@ -61,8 +58,4 @@ class KeyboardOptionsPayloadTest {
         assertNull(decoded.emojisAsString)
     }
 
-    @Test
-    fun `user preferences survive a server that omits them`() {
-        assertTrue(LightServiceMethod.GetUserPreferences.decodeResponse("{}").hapticsEnabled)
-    }
 }
